@@ -1,0 +1,133 @@
+---
+title: "EDA of LSST Light Curve"
+format: html
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(ggridges)
+library(readr)
+library(here)
+library(glue)
+
+theme_set(theme_bw())
+```
+
+```{r}
+lc_raw <- read_csv(
+  file = here("data_raw", "lc.csv"),
+  col_types = "ccfnnnnlllllln"
+)
+glimpse(lc_raw)
+```
+
+```{r}
+(object_id_str <- lc_raw$diaObjectId[1])
+```
+
+```{r}
+lc_df <- lc_raw |>
+  select(y_nJy = psfFlux, y_se_nJy = psfFluxErr, band, t_MJD = MJD) |> 
+  mutate(t_0 = t_MJD - min(t_MJD),
+         band = factor(band, levels = c("u", "g", "r", "i", "z", "y")),
+         d = as.integer(band)) |> 
+  arrange(t_0, band)
+
+head(lc_df)
+```
+
+```{r}
+lc_df |>
+  ggplot() +
+  aes(x = t_MJD, y = y_nJy, colour = band) +
+  geom_point(aes(fill = band, shape = band), size = 2, colour = "black") +
+  geom_rug(sides = "b", position = "jitter", alpha = 0.3) +
+  scale_shape_manual(values = c(22, 21:25)) +
+  labs(
+    title = glue("diaObjectId = {object_id_str}"),
+    x = "Time [MJD]",
+    y = "PSF direct image flux [nJy]",
+    colour = "Band", fill = "Band", shape = "Band"
+  )
+
+
+```
+
+```{r fig.height=6}
+lc_df |>
+  ggplot() +
+  aes(x = t_MJD, y = y_nJy, colour = band) +
+  geom_point(aes(fill = band, shape = band), size = 2, colour = "black") +
+  geom_rug(sides = "b", position = "jitter", alpha = 0.3) +
+  scale_shape_manual(values = c(22, 21:25)) +
+  geom_linerange(aes(
+    ymin = y_nJy - 2 * y_se_nJy,
+    ymax = y_nJy + 2 * y_se_nJy
+  )) +
+  facet_wrap(
+    facets = vars(band),
+    ncol = 1,
+    strip.position = "right"
+  ) +
+  scale_y_continuous(labels = scales::label_number()) +
+  labs(
+    title = glue("diaObjectId = {object_id_str}"),
+    x = "Time [MJD]",
+    y = "PSF direct image flux [nJy]",
+    colour = "Band"
+  ) +
+  theme(legend.position = "none")
+```
+
+```{r}
+lc_df |>
+  ggplot() +
+  aes(x = y_nJy, y = band, fill = band, colour = band) +
+  geom_density_ridges() +
+  scale_x_continuous(labels = scales::label_number_auto()) +
+  labs(
+    title = glue("diaObjectId = {object_id_str}"), x = "PSF direct image flux [nJy]", y = "Band"
+  ) +
+  theme(legend.position = "none")
+```
+
+```{r}
+lc_df |>
+  group_by(band) |>
+  summarise(
+    mean_y = mean(y_nJy),
+    sd_y = sd(y_nJy),
+    mean_se = mean(y_se_nJy)
+  )
+```
+
+```{r}
+# Add z-transformed columns (standardised within bands)
+lc_df <- lc_df |>
+  mutate(
+    y_std = as.numeric(scale(y_nJy)),
+    y_se_std = y_se_nJy / sd(y_nJy), 
+    .by = band
+  )
+lc_df
+```
+
+```{r}
+lc_df |>
+  ggplot() +
+  aes(x = t_0, y = y_std, colour = band) +
+  geom_point(size = 2, alpha = 0.5) +
+  labs(
+    title = glue("diaObjectId = {object_id_str}"),
+    x = "Time [days]",
+    y = "Standardised flux",
+    colour = "Band"
+  )
+```
+
+```{r}
+write_rds(lc_df, file = here("data", "lc_df.RDS"))
+write_csv(lc_df, file = here("data", "lc_df.CSV"))
+```

@@ -7,7 +7,11 @@ authors = [
     { name = "Shih Ching Fu", email = "shih.ching.fu@gmail.com" }
 ]
 requires-python = ">=3.15"
-dependencies = []
+dependencies = [
+    "matplotlib>=3.11.2",
+    "numcodecs==0.16.6",
+    "nutpie[stan]>=0.16.11",
+]
 
 [project.scripts]
 lsst-mogp = "lsst_mogp:main"
